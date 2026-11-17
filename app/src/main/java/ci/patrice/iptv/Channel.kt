@@ -7,7 +7,16 @@ data class Channel(
     val url: String,
     val referer: String = "",
     val userAgent: String = "",
+    val tvgId: String = "",
 ) {
+    /** Clé commune aux différents liens d'une même chaîne (ex. RTI 1 en 1080p et en 720p). */
+    val key: String by lazy {
+        val id = tvgId.substringBefore('@').trim().lowercase()
+        id.ifEmpty {
+            name.replace(Regex("\\([^)]*\\)|\\[[^\\]]*\\]"), "").trim().lowercase()
+        }
+    }
+
     val groups: List<String> get() = group.split(';').map { it.trim() }.filter { it.isNotEmpty() }
 }
 
@@ -22,6 +31,7 @@ object M3uParser {
         var group = ""
         var referer = ""
         var userAgent = ""
+        var tvgId = ""
         var hasMeta = false
         for (raw in text.lineSequence()) {
             val line = raw.trim()
@@ -34,6 +44,7 @@ object M3uParser {
                     group = attr(line, "group-title").ifEmpty { "Autres" }
                     referer = attr(line, "http-referrer")
                     userAgent = attr(line, "http-user-agent")
+                    tvgId = attr(line, "tvg-id")
                     hasMeta = true
                 }
                 line.startsWith("#EXTVLCOPT:", ignoreCase = true) -> {
@@ -47,11 +58,12 @@ object M3uParser {
                 }
                 line.startsWith("#") -> {}
                 else -> {
-                    out += if (hasMeta) Channel(name, logo, group, line, referer, userAgent)
+                    out += if (hasMeta) Channel(name, logo, group, line, referer, userAgent, tvgId)
                     else Channel(line, "", "Autres", line, referer, userAgent)
                     hasMeta = false
                     referer = ""
                     userAgent = ""
+                    tvgId = ""
                 }
             }
         }

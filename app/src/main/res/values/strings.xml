@@ -37,4 +37,6 @@
     <string name="international">🌐 International channels</string>
     <string name="whole_world">whole world</string>
     <string name="imported_file">imported file</string>
+    <string name="links_count">%1$s · %2$d links</string>
+    <string name="st_trying_alt">Link down, trying another one (%1$d/%2$d)…</string>
 </resources>

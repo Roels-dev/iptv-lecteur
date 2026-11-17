@@ -68,6 +68,8 @@ class MainActivity : AppCompatActivity() {
     private val offline = mutableSetOf<String>()
     private lateinit var http: DefaultHttpDataSource.Factory
     private var retried = false
+    private val tried = mutableSetOf<String>()
+    private var linksByKey: Map<String, List<Channel>> = emptyMap()
 
     private val pickFile = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         if (uri != null) loadFromFile(uri)
@@ -93,6 +95,7 @@ class MainActivity : AppCompatActivity() {
             onFavToggle = { toggleFav(it) },
             isFav = { favs.contains(it.url) },
             isOffline = { offline.contains(it.url) },
+            linkCount = { linksByKey[it.key]?.size ?: 1 },
         )
         findViewById<RecyclerView>(R.id.list).apply {
             layoutManager = LinearLayoutManager(this@MainActivity)
@@ -172,17 +175,27 @@ class MainActivity : AppCompatActivity() {
                         getString(R.string.err_format)
                     else -> getString(R.string.err_generic)
                 }
-                setStatus(getString(R.string.try_another, msg), true)
                 c?.let { markOffline(it, true) }
+                // Lien suivant de la même chaîne, s'il y en a un qu'on n'a pas encore essayé.
+                val links = c?.let { linksByKey[it.key] }.orEmpty()
+                val next = links.filter { it.url !in tried }.sortedBy { offline.contains(it.url) }.firstOrNull()
+                if (next != null) {
+                    setStatus(getString(R.string.st_trying_alt, tried.size + 1, links.size))
+                    play(next, fromUser = false)
+                    return
+                }
+                setStatus(getString(R.string.try_another, msg), true)
             }
         })
         playerView.player = p
         player = p
     }
 
-    private fun play(c: Channel) {
+    private fun play(c: Channel, fromUser: Boolean = true) {
         val p = player ?: return
         retried = false
+        if (fromUser) tried.clear()
+        tried += c.url
         http.setUserAgent(c.userAgent.ifBlank { DEFAULT_UA })
         http.setDefaultRequestProperties(
             if (c.referer.isNotBlank()) mapOf("Referer" to c.referer, "Origin" to originOf(c.referer))
@@ -316,6 +329,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun useChannels(list: List<Channel>, label: String) {
         channels = list
+        linksByKey = list.groupBy { it.key }
         setGroups(list.flatMap { it.groups }.distinct().sortedWith(String.CASE_INSENSITIVE_ORDER))
         refreshList()
         if (list.isEmpty()) setStatus(getString(R.string.st_empty), true)
