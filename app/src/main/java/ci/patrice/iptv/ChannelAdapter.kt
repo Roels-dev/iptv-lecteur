@@ -43,7 +43,7 @@ class ChannelAdapter(
         h.group.text = if (offline) ctx.getString(R.string.offline_tag, groupText) else groupText
         h.name.setTextColor(if (playing) ACCENT else if (offline) MUTED else TEXT)
         h.itemView.alpha = if (offline) 0.55f else 1f
-        h.itemView.setBackgroundColor(if (playing) PLAYING_BG else Color.TRANSPARENT)
+        h.itemView.isActivated = playing
         h.fav.setTextColor(if (isFav(c)) ACCENT else MUTED)
         h.logo.load(c.logo.ifBlank { null }) { crossfade(true) }
         h.itemView.setOnClickListener { onClick(c) }
@@ -54,6 +54,5 @@ class ChannelAdapter(
         private val ACCENT = Color.parseColor("#FF8A3D")
         private val TEXT = Color.parseColor("#E8EAED")
         private val MUTED = Color.parseColor("#4A4F59")
-        private val PLAYING_BG = Color.parseColor("#2A2118")
     }
 }

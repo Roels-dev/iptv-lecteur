@@ -8,7 +8,11 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.app.UiModeManager
+import android.content.pm.PackageManager
+import android.view.KeyEvent
 import android.view.View
+import android.widget.Toast
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.widget.AdapterView
@@ -69,6 +73,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var http: DefaultHttpDataSource.Factory
     private var retried = false
     private val tried = mutableSetOf<String>()
+    private lateinit var listView: RecyclerView
+    private val isTv by lazy {
+        (getSystemService(Context.UI_MODE_SERVICE) as UiModeManager).currentModeType == Configuration.UI_MODE_TYPE_TELEVISION ||
+            packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
+    }
     private var linksByKey: Map<String, List<Channel>> = emptyMap()
 
     private val pickFile = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
@@ -91,13 +100,17 @@ class MainActivity : AppCompatActivity() {
         offline += prefs.getStringSet("offline", emptySet()).orEmpty()
 
         adapter = ChannelAdapter(
-            onClick = { play(it) },
+            onClick = {
+                play(it)
+                if (isTv) setFullscreen(true, forceOrientation = false)
+            },
             onFavToggle = { toggleFav(it) },
             isFav = { favs.contains(it.url) },
             isOffline = { offline.contains(it.url) },
             linkCount = { linksByKey[it.key]?.size ?: 1 },
         )
-        findViewById<RecyclerView>(R.id.list).apply {
+        listView = findViewById(R.id.list)
+        listView.apply {
             layoutManager = LinearLayoutManager(this@MainActivity)
             adapter = this@MainActivity.adapter
         }
@@ -123,6 +136,8 @@ class MainActivity : AppCompatActivity() {
         })
 
         initPlayer()
+        setFullscreen(false, forceOrientation = false)
+        if (isTv) findViewById<View>(R.id.presetsBtn).requestFocus()
 
         val last = prefs.getString("lastUrl", null)
         if (!last.isNullOrBlank()) loadFromUrl(last, prefs.getString("lastLabel", null)) else showExplore()
@@ -332,6 +347,7 @@ class MainActivity : AppCompatActivity() {
         linksByKey = list.groupBy { it.key }
         setGroups(list.flatMap { it.groups }.distinct().sortedWith(String.CASE_INSENSITIVE_ORDER))
         refreshList()
+        if (isTv && !fullscreen) focusCurrentRow()
         if (list.isEmpty()) setStatus(getString(R.string.st_empty), true)
         else setStatus(getString(R.string.st_loaded, list.size, label))
     }
@@ -383,6 +399,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun setStatus(msg: String, error: Boolean = false) {
         status.text = msg
+        if (fullscreen && error) Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
         status.setTextColor(if (error) 0xFFFF6B6B.toInt() else 0xFF8B919C.toInt())
     }
 
@@ -392,7 +409,7 @@ class MainActivity : AppCompatActivity() {
         fullscreen = on
         controls.visibility = if (on) View.GONE else View.VISIBLE
         val lp = playerView.layoutParams
-        lp.height = if (on) ViewGroup.LayoutParams.MATCH_PARENT else (220 * resources.displayMetrics.density).toInt()
+        lp.height = if (on) ViewGroup.LayoutParams.MATCH_PARENT else normalPlayerHeight()
         playerView.layoutParams = lp
 
         val insets = WindowCompat.getInsetsController(window, window.decorView)
@@ -402,14 +419,50 @@ class MainActivity : AppCompatActivity() {
         } else {
             insets.show(WindowInsetsCompat.Type.systemBars())
         }
-        if (forceOrientation) {
+        if (!on && isTv) focusCurrentRow()
+        if (forceOrientation && !isTv) {
             requestedOrientation = if (on) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
             else ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         }
     }
 
+    private fun normalPlayerHeight(): Int {
+        val dm = resources.displayMetrics
+        return if (isTv) (dm.heightPixels * 0.45f).toInt() else (220 * dm.density).toInt()
+    }
+
+    /** Remet le focus télécommande sur la chaîne en cours (ou la première). */
+    private fun focusCurrentRow() {
+        val items = adapter.items
+        if (items.isEmpty()) return
+        val idx = items.indexOf(adapter.current).coerceAtLeast(0)
+        listView.scrollToPosition(idx)
+        listView.post { listView.findViewHolderForAdapterPosition(idx)?.itemView?.requestFocus() }
+    }
+
+    /** Zapping : chaîne précédente / suivante de la liste affichée. */
+    private fun zap(step: Int) {
+        val items = adapter.items
+        if (items.isEmpty()) return
+        val idx = items.indexOf(adapter.current)
+        val next = items[if (idx < 0) 0 else (idx + step).mod(items.size)]
+        play(next)
+        Toast.makeText(this, next.name, Toast.LENGTH_SHORT).show()
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (fullscreen && event.action == KeyEvent.ACTION_DOWN && !playerView.isControllerFullyVisible) {
+            when (event.keyCode) {
+                KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_CHANNEL_UP -> { zap(-1); return true }
+                KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_CHANNEL_DOWN -> { zap(1); return true }
+            }
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
+        if (isTv) return
         if (newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE && !fullscreen) {
             setFullscreen(true, forceOrientation = false)
         } else if (newConfig.orientation == Configuration.ORIENTATION_PORTRAIT && fullscreen) {
