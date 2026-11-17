@@ -15,6 +15,8 @@ import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
+import android.widget.LinearLayout
+import android.widget.ListView
 import android.widget.Spinner
 import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
@@ -38,6 +40,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import java.net.HttpURLConnection
+import java.text.Normalizer
 import java.net.URL
 import java.util.concurrent.Executors
 
@@ -55,7 +58,7 @@ class MainActivity : AppCompatActivity() {
 
     private var player: ExoPlayer? = null
     private var channels: List<Channel> = emptyList()
-    private var groupOptions: List<String> = listOf(ALL)
+    private var groupOptions: List<String> = emptyList()
     private var fullscreen = false
 
     private val io = Executors.newSingleThreadExecutor()
@@ -65,15 +68,6 @@ class MainActivity : AppCompatActivity() {
     private val offline = mutableSetOf<String>()
     private lateinit var http: DefaultHttpDataSource.Factory
     private var retried = false
-
-    private val presets = listOf(
-        "🇨🇮 Côte d'Ivoire" to "https://iptv-org.github.io/iptv/countries/ci.m3u",
-        "🇸🇳 Sénégal" to "https://iptv-org.github.io/iptv/countries/sn.m3u",
-        "🇫🇷 Chaînes en français" to "https://iptv-org.github.io/iptv/languages/fra.m3u",
-        "📰 Infos (monde)" to "https://iptv-org.github.io/iptv/categories/news.m3u",
-        "⚽ Sport (gratuit)" to "https://iptv-org.github.io/iptv/categories/sports.m3u",
-        "🎵 Musique" to "https://iptv-org.github.io/iptv/categories/music.m3u",
-    )
 
     private val pickFile = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         if (uri != null) loadFromFile(uri)
@@ -109,7 +103,7 @@ class MainActivity : AppCompatActivity() {
         urlInput.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_GO) { loadFromUrl(urlInput.text.toString()); true } else false
         }
-        findViewById<Button>(R.id.presetsBtn).setOnClickListener { showPresets() }
+        findViewById<Button>(R.id.presetsBtn).setOnClickListener { showExplore() }
         search.doAfterTextChanged { refreshList() }
         groupSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) = refreshList()
@@ -128,7 +122,7 @@ class MainActivity : AppCompatActivity() {
         initPlayer()
 
         val last = prefs.getString("lastUrl", null)
-        if (!last.isNullOrBlank()) loadFromUrl(last) else showPresets()
+        if (!last.isNullOrBlank()) loadFromUrl(last, prefs.getString("lastLabel", null)) else showExplore()
     }
 
     // ---------- Lecteur ----------
@@ -145,9 +139,9 @@ class MainActivity : AppCompatActivity() {
         p.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
                 when (state) {
-                    Player.STATE_BUFFERING -> setStatus("Chargement du flux…")
+                    Player.STATE_BUFFERING -> setStatus(getString(R.string.st_buffering))
                     Player.STATE_READY -> {
-                        setStatus("En direct")
+                        setStatus(getString(R.string.st_live))
                         retried = false
                         adapter.current?.let { markOffline(it, false) }
                     }
@@ -161,24 +155,24 @@ class MainActivity : AppCompatActivity() {
                         error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ||
                         error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED)) {
                     retried = true
-                    setStatus("Reconnexion…")
+                    setStatus(getString(R.string.st_reconnecting))
                     player?.let { it.seekToDefaultPosition(); it.prepare(); it.play() }
                     return
                 }
                 val msg = when (error.errorCode) {
                     PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ->
-                        "Chaîne hors ligne ou réservée à son pays d'origine."
+                        getString(R.string.err_http)
                     PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
                     PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ->
-                        "Serveur de la chaîne injoignable (ou ta connexion)."
+                        getString(R.string.err_network)
                     PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED,
                     PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED,
                     PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED,
                     PlaybackException.ERROR_CODE_PARSING_MANIFEST_UNSUPPORTED ->
-                        "Format de flux non pris en charge."
-                    else -> "Chaîne indisponible pour le moment."
+                        getString(R.string.err_format)
+                    else -> getString(R.string.err_generic)
                 }
-                setStatus("$msg Essaie une autre chaîne.", true)
+                setStatus(getString(R.string.try_another, msg), true)
                 c?.let { markOffline(it, true) }
             }
         })
@@ -208,46 +202,93 @@ class MainActivity : AppCompatActivity() {
 
     // ---------- Playlists ----------
 
-    private fun showPresets() {
-        val names = presets.map { it.first } + "📂 Importer un fichier M3U…"
+    private fun showExplore() {
+        val names = listOf(
+            getString(R.string.ex_world), getString(R.string.ex_country), getString(R.string.ex_language),
+            getString(R.string.ex_category), getString(R.string.ex_file),
+        )
         MaterialAlertDialogBuilder(this)
-            .setTitle("Playlists gratuites et légales")
+            .setTitle(R.string.explore_title)
             .setItems(names.toTypedArray()) { _, i ->
-                if (i < presets.size) loadFromUrl(presets[i].second)
-                else pickFile.launch(arrayOf("*/*"))
+                when (i) {
+                    0 -> loadFromUrl(Catalog.WORLD, getString(R.string.whole_world))
+                    1 -> pickSource(getString(R.string.pick_country), Catalog.countries(getString(R.string.international)))
+                    2 -> pickSource(getString(R.string.pick_language), Catalog.languages())
+                    3 -> pickSource(getString(R.string.pick_category), Catalog.categories())
+                    else -> pickFile.launch(arrayOf("*/*"))
+                }
             }
-            .setNegativeButton("Fermer", null)
+            .setNegativeButton(R.string.close, null)
             .show()
     }
 
-    private fun loadFromUrl(input: String) {
+    /** Liste avec champ de recherche (pays, langues, thèmes). */
+    private fun pickSource(title: String, sources: List<Source>) {
+        val d = resources.displayMetrics.density
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding((20 * d).toInt(), (8 * d).toInt(), (20 * d).toInt(), 0)
+        }
+        val filter = EditText(this).apply {
+            hint = getString(R.string.filter_hint)
+            isSingleLine = true
+        }
+        val listView = ListView(this)
+        box.addView(filter)
+        box.addView(listView, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, (380 * d).toInt()))
+        var shown = sources
+        val listAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, shown.map { it.label }.toMutableList())
+        listView.adapter = listAdapter
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle(title)
+            .setView(box)
+            .setNegativeButton(R.string.close, null)
+            .create()
+        filter.doAfterTextChanged { t ->
+            val q = normalize(t?.toString().orEmpty())
+            shown = sources.filter { normalize(it.label).contains(q) }
+            listAdapter.clear()
+            listAdapter.addAll(shown.map { it.label })
+        }
+        listView.setOnItemClickListener { _, _, pos, _ ->
+            val src = shown[pos]
+            dialog.dismiss()
+            loadFromUrl(src.url, src.label)
+        }
+        dialog.show()
+    }
+
+    private fun normalize(s: String): String =
+        Normalizer.normalize(s, Normalizer.Form.NFD).replace(Regex("\\p{Mn}+"), "").lowercase().trim()
+
+    private fun loadFromUrl(input: String, label: String? = null) {
         val url = input.trim()
         if (url.isEmpty()) return
         urlInput.setText(url)
-        setStatus("Chargement de la playlist…")
+        setStatus(getString(R.string.st_loading_playlist))
         io.execute {
             try {
                 val text = download(url)
                 val list = M3uParser.parse(text)
                 main.post {
-                    prefs.edit().putString("lastUrl", url).apply()
-                    useChannels(list, Uri.parse(url).host ?: "")
+                    prefs.edit().putString("lastUrl", url).putString("lastLabel", label).apply()
+                    useChannels(list, label ?: Uri.parse(url).host ?: "")
                 }
             } catch (e: Exception) {
-                main.post { setStatus("Impossible de charger la playlist : ${e.message}", true) }
+                main.post { setStatus(getString(R.string.err_playlist, e.message ?: ""), true) }
             }
         }
     }
 
     private fun loadFromFile(uri: Uri) {
-        setStatus("Lecture du fichier…")
+        setStatus(getString(R.string.st_reading_file))
         io.execute {
             try {
                 val text = contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }.orEmpty()
                 val list = M3uParser.parse(text)
-                main.post { useChannels(list, "fichier importé") }
+                main.post { useChannels(list, getString(R.string.imported_file)) }
             } catch (e: Exception) {
-                main.post { setStatus("Fichier illisible : ${e.message}", true) }
+                main.post { setStatus(getString(R.string.err_file, e.message ?: ""), true) }
             }
         }
     }
@@ -259,30 +300,30 @@ class MainActivity : AppCompatActivity() {
             conn.instanceFollowRedirects = false
             conn.connectTimeout = 15_000
             conn.readTimeout = 30_000
-            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android) IPTVLecteur/1.0")
+            conn.setRequestProperty("User-Agent", DEFAULT_UA)
             val code = conn.responseCode
             if (code in 300..399) {
-                val loc = conn.getHeaderField("Location") ?: throw Exception("redirection invalide")
+                val loc = conn.getHeaderField("Location") ?: throw Exception("bad redirect")
                 url = URL(URL(url), loc).toString()
                 conn.disconnect()
                 return@repeat
             }
-            if (code !in 200..299) throw Exception("erreur HTTP $code")
+            if (code !in 200..299) throw Exception("HTTP $code")
             return conn.inputStream.bufferedReader().use { it.readText() }
         }
-        throw Exception("trop de redirections")
+        throw Exception("too many redirects")
     }
 
     private fun useChannels(list: List<Channel>, label: String) {
         channels = list
         setGroups(list.flatMap { it.groups }.distinct().sortedWith(String.CASE_INSENSITIVE_ORDER))
         refreshList()
-        if (list.isEmpty()) setStatus("Aucune chaîne trouvée dans cette playlist.", true)
-        else setStatus("${list.size} chaînes chargées – $label")
+        if (list.isEmpty()) setStatus(getString(R.string.st_empty), true)
+        else setStatus(getString(R.string.st_loaded, list.size, label))
     }
 
     private fun setGroups(groups: List<String>) {
-        groupOptions = listOf(ALL, FAVS) + groups
+        groupOptions = listOf(getString(R.string.all_categories), getString(R.string.favorites)) + groups
         val a = ArrayAdapter(this, android.R.layout.simple_spinner_item, groupOptions)
         a.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         groupSpinner.adapter = a
@@ -291,12 +332,13 @@ class MainActivity : AppCompatActivity() {
     @SuppressLint("NotifyDataSetChanged")
     private fun refreshList() {
         val q = search.text.toString().trim().lowercase()
-        val g = groupOptions.getOrNull(groupSpinner.selectedItemPosition) ?: ALL
+        val pos = groupSpinner.selectedItemPosition
+        val g = groupOptions.getOrNull(pos)
         adapter.items = channels.filter { c ->
             (q.isEmpty() || c.name.lowercase().contains(q)) &&
-                when (g) {
-                    ALL -> true
-                    FAVS -> favs.contains(c.url)
+                when {
+                    pos <= 0 || g == null -> true
+                    pos == 1 -> favs.contains(c.url)
                     else -> c.groups.contains(g)
                 }
         }.sortedBy { offline.contains(it.url) }
@@ -307,7 +349,7 @@ class MainActivity : AppCompatActivity() {
     private fun toggleFav(c: Channel) {
         if (!favs.remove(c.url)) favs.add(c.url)
         prefs.edit().putStringSet("favs", HashSet(favs)).apply()
-        if (groupOptions.getOrNull(groupSpinner.selectedItemPosition) == FAVS) refreshList()
+        if (groupSpinner.selectedItemPosition == 1) refreshList()
         else adapter.notifyDataSetChanged()
     }
 
@@ -381,8 +423,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     companion object {
-        private const val ALL = "Toutes les catégories"
-        private const val FAVS = "★ Favoris"
         private const val DEFAULT_UA =
             "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36"
     }

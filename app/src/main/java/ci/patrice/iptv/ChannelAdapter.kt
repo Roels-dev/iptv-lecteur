@@ -36,7 +36,7 @@ class ChannelAdapter(
         val playing = c == current
         h.name.text = c.name
         val offline = isOffline(c) && !playing
-        h.group.text = if (offline) "⚠ Indisponible au dernier essai · ${c.group}" else c.group
+        h.group.text = if (offline) h.itemView.context.getString(R.string.offline_tag, c.group) else c.group
         h.name.setTextColor(if (playing) ACCENT else if (offline) MUTED else TEXT)
         h.itemView.alpha = if (offline) 0.55f else 1f
         h.itemView.setBackgroundColor(if (playing) PLAYING_BG else Color.TRANSPARENT)
