@@ -13,6 +13,7 @@ class ChannelAdapter(
     private val onClick: (Channel) -> Unit,
     private val onFavToggle: (Channel) -> Unit,
     private val isFav: (Channel) -> Boolean,
+    private val isOffline: (Channel) -> Boolean,
 ) : RecyclerView.Adapter<ChannelAdapter.VH>() {
 
     var items: List<Channel> = emptyList()
@@ -34,8 +35,10 @@ class ChannelAdapter(
         val c = items[position]
         val playing = c == current
         h.name.text = c.name
-        h.group.text = c.group
-        h.name.setTextColor(if (playing) ACCENT else TEXT)
+        val offline = isOffline(c) && !playing
+        h.group.text = if (offline) "⚠ Indisponible au dernier essai · ${c.group}" else c.group
+        h.name.setTextColor(if (playing) ACCENT else if (offline) MUTED else TEXT)
+        h.itemView.alpha = if (offline) 0.55f else 1f
         h.itemView.setBackgroundColor(if (playing) PLAYING_BG else Color.TRANSPARENT)
         h.fav.setTextColor(if (isFav(c)) ACCENT else MUTED)
         h.logo.load(c.logo.ifBlank { null }) { crossfade(true) }

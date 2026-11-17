@@ -62,6 +62,9 @@ class MainActivity : AppCompatActivity() {
     private val main = Handler(Looper.getMainLooper())
     private val prefs by lazy { getSharedPreferences("iptv", Context.MODE_PRIVATE) }
     private val favs = mutableSetOf<String>()
+    private val offline = mutableSetOf<String>()
+    private lateinit var http: DefaultHttpDataSource.Factory
+    private var retried = false
 
     private val presets = listOf(
         "🇨🇮 Côte d'Ivoire" to "https://iptv-org.github.io/iptv/countries/ci.m3u",
@@ -89,11 +92,13 @@ class MainActivity : AppCompatActivity() {
         groupSpinner = findViewById(R.id.groupSpinner)
 
         favs += prefs.getStringSet("favs", emptySet()).orEmpty()
+        offline += prefs.getStringSet("offline", emptySet()).orEmpty()
 
         adapter = ChannelAdapter(
             onClick = { play(it) },
             onFavToggle = { toggleFav(it) },
             isFav = { favs.contains(it.url) },
+            isOffline = { offline.contains(it.url) },
         )
         findViewById<RecyclerView>(R.id.list).apply {
             layoutManager = LinearLayoutManager(this@MainActivity)
@@ -129,8 +134,8 @@ class MainActivity : AppCompatActivity() {
     // ---------- Lecteur ----------
 
     private fun initPlayer() {
-        val http = DefaultHttpDataSource.Factory()
-            .setUserAgent("Mozilla/5.0 (Linux; Android) IPTVLecteur/1.0")
+        http = DefaultHttpDataSource.Factory()
+            .setUserAgent(DEFAULT_UA)
             .setAllowCrossProtocolRedirects(true)
             .setConnectTimeoutMs(15_000)
             .setReadTimeoutMs(15_000)
@@ -141,12 +146,40 @@ class MainActivity : AppCompatActivity() {
             override fun onPlaybackStateChanged(state: Int) {
                 when (state) {
                     Player.STATE_BUFFERING -> setStatus("Chargement du flux…")
-                    Player.STATE_READY -> setStatus("En direct")
+                    Player.STATE_READY -> {
+                        setStatus("En direct")
+                        retried = false
+                        adapter.current?.let { markOffline(it, false) }
+                    }
                     else -> {}
                 }
             }
             override fun onPlayerError(error: PlaybackException) {
-                setStatus("Chaîne indisponible (${error.errorCodeName}). Essaie une autre.", true)
+                val c = adapter.current
+                // Flux en direct « en retard » ou coupure passagère : on relance une fois automatiquement.
+                if (!retried && (error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW ||
+                        error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ||
+                        error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED)) {
+                    retried = true
+                    setStatus("Reconnexion…")
+                    player?.let { it.seekToDefaultPosition(); it.prepare(); it.play() }
+                    return
+                }
+                val msg = when (error.errorCode) {
+                    PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ->
+                        "Chaîne hors ligne ou réservée à son pays d'origine."
+                    PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+                    PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ->
+                        "Serveur de la chaîne injoignable (ou ta connexion)."
+                    PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED,
+                    PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED,
+                    PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED,
+                    PlaybackException.ERROR_CODE_PARSING_MANIFEST_UNSUPPORTED ->
+                        "Format de flux non pris en charge."
+                    else -> "Chaîne indisponible pour le moment."
+                }
+                setStatus("$msg Essaie une autre chaîne.", true)
+                c?.let { markOffline(it, true) }
             }
         })
         playerView.player = p
@@ -155,6 +188,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun play(c: Channel) {
         val p = player ?: return
+        retried = false
+        http.setUserAgent(c.userAgent.ifBlank { DEFAULT_UA })
+        http.setDefaultRequestProperties(
+            if (c.referer.isNotBlank()) mapOf("Referer" to c.referer, "Origin" to originOf(c.referer))
+            else emptyMap()
+        )
         adapter.current = c
         adapter.notifyDataSetChanged()
         nowPlaying.text = c.name
@@ -260,7 +299,7 @@ class MainActivity : AppCompatActivity() {
                     FAVS -> favs.contains(c.url)
                     else -> c.groups.contains(g)
                 }
-        }
+        }.sortedBy { offline.contains(it.url) }
         adapter.notifyDataSetChanged()
     }
 
@@ -270,6 +309,20 @@ class MainActivity : AppCompatActivity() {
         prefs.edit().putStringSet("favs", HashSet(favs)).apply()
         if (groupOptions.getOrNull(groupSpinner.selectedItemPosition) == FAVS) refreshList()
         else adapter.notifyDataSetChanged()
+    }
+
+    private fun originOf(url: String): String {
+        val u = Uri.parse(url)
+        return if (u.scheme != null && u.host != null) "${u.scheme}://${u.host}" else url
+    }
+
+    @SuppressLint("NotifyDataSetChanged")
+    private fun markOffline(c: Channel, isOff: Boolean) {
+        val changed = if (isOff) offline.add(c.url) else offline.remove(c.url)
+        if (changed) {
+            prefs.edit().putStringSet("offline", HashSet(offline)).apply()
+            adapter.notifyDataSetChanged()
+        }
     }
 
     private fun setStatus(msg: String, error: Boolean = false) {
@@ -330,5 +383,7 @@ class MainActivity : AppCompatActivity() {
     companion object {
         private const val ALL = "Toutes les catégories"
         private const val FAVS = "★ Favoris"
+        private const val DEFAULT_UA =
+            "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36"
     }
 }
