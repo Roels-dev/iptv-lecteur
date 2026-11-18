@@ -10,6 +10,21 @@ object Catalog {
     private const val BASE = "https://iptv-org.github.io/iptv"
     const val WORLD = "$BASE/index.m3u"
     const val INTERNATIONAL = "$BASE/countries/int.m3u"
+    const val SPORTS = "$BASE/categories/sports.m3u"
+    /** Free-TV : chaînes gratuites (TNT) du monde entier, maintenue sur GitHub. */
+    const val FREE_TV = "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8"
+
+    private val rawIp = Regex("^https?://\\d+\\.\\d+\\.\\d+\\.\\d+")
+    private val sportWords = Regex(
+        "sport|foot|soccer|calcio|deport|esporte|olymp|golf|tennis|racing|rally|motor|fight|boxing|" +
+            "wrestling|nba|nfl|fifa|bein|eurosport|[ée]quipe|stadium|arena|athlet|cycling|cricket|rugby",
+        RegexOption.IGNORE_CASE,
+    )
+
+    /** Écarte les rediffusions non officielles hébergées sur une simple adresse IP. */
+    fun isOfficialHost(c: Channel): Boolean = !rawIp.containsMatchIn(c.url)
+
+    fun isSport(c: Channel): Boolean = sportWords.containsMatchIn(c.name) || sportWords.containsMatchIn(c.group)
 
     private val fr get() = Locale.getDefault().language == "fr"
 

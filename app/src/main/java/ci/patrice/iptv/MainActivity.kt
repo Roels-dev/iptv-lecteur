@@ -140,7 +140,11 @@ class MainActivity : AppCompatActivity() {
         if (isTv) findViewById<View>(R.id.presetsBtn).requestFocus()
 
         val last = prefs.getString("lastUrl", null)
-        if (!last.isNullOrBlank()) loadFromUrl(last, prefs.getString("lastLabel", null)) else showExplore()
+        when {
+            last.isNullOrBlank() -> showExplore()
+            last.startsWith("builtin:") -> loadBuiltin(last)
+            else -> loadFromUrl(last, prefs.getString("lastLabel", null))
+        }
     }
 
     // ---------- Lecteur ----------
@@ -221,8 +225,12 @@ class MainActivity : AppCompatActivity() {
         nowPlaying.text = c.name
         val lower = c.url.lowercase()
         val builder = MediaItem.Builder().setUri(c.url)
-        val direct = listOf(".mp4", ".mkv", ".ts", ".webm", ".mp3", ".aac").any { lower.substringBefore('?').endsWith(it) }
-        if (!direct) builder.setMimeType(MimeTypes.APPLICATION_M3U8)
+        val path = lower.substringBefore('?')
+        val direct = listOf(".mp4", ".mkv", ".ts", ".webm", ".mp3", ".aac").any { path.endsWith(it) }
+        when {
+            path.endsWith(".mpd") -> builder.setMimeType(MimeTypes.APPLICATION_MPD)
+            !direct -> builder.setMimeType(MimeTypes.APPLICATION_M3U8)
+        }
         p.setMediaItem(builder.build())
         p.prepare()
         p.playWhenReady = true
@@ -232,7 +240,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun showExplore() {
         val names = listOf(
-            getString(R.string.ex_world), getString(R.string.ex_country), getString(R.string.ex_language),
+            getString(R.string.ex_world), getString(R.string.ex_sport), getString(R.string.ex_freetv),
+            getString(R.string.ex_country), getString(R.string.ex_language),
             getString(R.string.ex_category), getString(R.string.ex_file),
         )
         MaterialAlertDialogBuilder(this)
@@ -240,9 +249,11 @@ class MainActivity : AppCompatActivity() {
             .setItems(names.toTypedArray()) { _, i ->
                 when (i) {
                     0 -> loadFromUrl(Catalog.WORLD, getString(R.string.whole_world))
-                    1 -> pickSource(getString(R.string.pick_country), Catalog.countries(getString(R.string.international)))
-                    2 -> pickSource(getString(R.string.pick_language), Catalog.languages())
-                    3 -> pickSource(getString(R.string.pick_category), Catalog.categories())
+                    1 -> loadBuiltin(BUILTIN_SPORT)
+                    2 -> loadBuiltin(BUILTIN_FREETV)
+                    3 -> pickSource(getString(R.string.pick_country), Catalog.countries(getString(R.string.international)))
+                    4 -> pickSource(getString(R.string.pick_language), Catalog.languages())
+                    5 -> pickSource(getString(R.string.pick_category), Catalog.categories())
                     else -> pickFile.launch(arrayOf("*/*"))
                 }
             }
@@ -288,6 +299,41 @@ class MainActivity : AppCompatActivity() {
 
     private fun normalize(s: String): String =
         Normalizer.normalize(s, Normalizer.Form.NFD).replace(Regex("\\p{Mn}+"), "").lowercase().trim()
+
+    /** Listes combinées : plusieurs sources gratuites fusionnées et filtrées. */
+    private fun loadBuiltin(id: String) {
+        val (parts, label) = when (id) {
+            BUILTIN_SPORT -> listOf<Pair<String, (Channel) -> Boolean>>(
+                Catalog.SPORTS to { _ -> true },
+                Catalog.FREE_TV to { c -> Catalog.isOfficialHost(c) && Catalog.isSport(c) },
+            ) to getString(R.string.label_sport)
+            else -> listOf<Pair<String, (Channel) -> Boolean>>(
+                Catalog.FREE_TV to { c -> Catalog.isOfficialHost(c) },
+            ) to getString(R.string.label_freetv)
+        }
+        setStatus(getString(R.string.st_loading_playlist))
+        io.execute {
+            val all = mutableListOf<Channel>()
+            var lastError: Exception? = null
+            for ((url, keep) in parts) {
+                try {
+                    all += M3uParser.parse(download(url)).filter(keep)
+                } catch (e: Exception) {
+                    lastError = e
+                }
+            }
+            val unique = all.distinctBy { it.url }
+            val error = lastError
+            main.post {
+                if (unique.isEmpty() && error != null) {
+                    setStatus(getString(R.string.err_playlist, error.message ?: ""), true)
+                } else {
+                    prefs.edit().putString("lastUrl", id).putString("lastLabel", label).apply()
+                    useChannels(unique, label)
+                }
+            }
+        }
+    }
 
     private fun loadFromUrl(input: String, label: String? = null) {
         val url = input.trim()
@@ -490,6 +536,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     companion object {
+        private const val BUILTIN_SPORT = "builtin:sport"
+        private const val BUILTIN_FREETV = "builtin:freetv"
         private const val DEFAULT_UA =
             "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36"
     }

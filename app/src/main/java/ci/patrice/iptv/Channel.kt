@@ -57,6 +57,10 @@ object M3uParser {
                     }
                 }
                 line.startsWith("#") -> {}
+                line.contains("youtube.com") || line.contains("youtu.be") -> {
+                    // Liens YouTube : non lisibles par le lecteur, on les ignore.
+                    hasMeta = false; referer = ""; userAgent = ""; tvgId = ""
+                }
                 else -> {
                     out += if (hasMeta) Channel(name, logo, group, line, referer, userAgent, tvgId)
                     else Channel(line, "", "Autres", line, referer, userAgent)
