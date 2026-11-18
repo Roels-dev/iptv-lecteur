@@ -9,4 +9,4 @@ rubriques Sport et Apprendre l'anglais, codes d'accès uniques par appareil.
 
 Chaque push sur `main` compile et publie automatiquement un nouvel APK (GitHub Actions).
 
-Version actuelle : 2.0 (codes d'accès).
+Version actuelle : 2.1 (Afrique francophone, films & séries, guide des programmes).

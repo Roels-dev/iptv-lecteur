@@ -11,8 +11,8 @@ android {
         applicationId = "ci.patrice.iptv"
         minSdk = 21
         targetSdk = 35
-        versionCode = 9
-        versionName = "2.0"
+        versionCode = 10
+        versionName = "2.1"
 
         // Codes d'accès (Supabase). Vides = contrôle désactivé.
         val supabaseUrl = (project.findProperty("iptv.supabaseUrl") as String?).orEmpty()

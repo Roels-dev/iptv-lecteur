@@ -58,6 +58,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var controls: View
     private lateinit var nowPlaying: TextView
     private lateinit var status: TextView
+    private lateinit var nowEpg: TextView
     private lateinit var urlInput: EditText
     private lateinit var search: EditText
     private lateinit var groupSpinner: Spinner
@@ -95,6 +96,8 @@ class MainActivity : AppCompatActivity() {
         controls = findViewById(R.id.controls)
         nowPlaying = findViewById(R.id.nowPlaying)
         status = findViewById(R.id.status)
+        nowEpg = findViewById(R.id.nowEpg)
+        nowEpg.setOnClickListener { adapter.current?.let { showGuide(it) } }
         urlInput = findViewById(R.id.urlInput)
         search = findViewById(R.id.search)
         groupSpinner = findViewById(R.id.groupSpinner)
@@ -111,6 +114,8 @@ class MainActivity : AppCompatActivity() {
             isFav = { favs.contains(it.url) },
             isOffline = { offline.contains(it.url) },
             linkCount = { linksByKey[it.key]?.size ?: 1 },
+            epgLine = { epgLine(it) },
+            onLongClick = { showGuide(it) },
         )
         listView = findViewById(R.id.list)
         listView.apply {
@@ -151,6 +156,8 @@ class MainActivity : AppCompatActivity() {
     private fun startContent() {
         if (contentStarted) return
         contentStarted = true
+        loadEpg()
+        main.postDelayed(epgTicker, 60_000)
         val last = prefs.getString("lastUrl", null)
         when {
             last.isNullOrBlank() -> showExplore()
@@ -349,6 +356,7 @@ class MainActivity : AppCompatActivity() {
         adapter.current = c
         adapter.notifyDataSetChanged()
         nowPlaying.text = c.name
+        updateNowEpg()
         val lower = c.url.lowercase()
         val builder = MediaItem.Builder().setUri(c.url)
         val path = lower.substringBefore('?')
@@ -366,9 +374,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun showExplore() {
         val names = listOf(
-            getString(R.string.ex_world), getString(R.string.ex_sport), getString(R.string.ex_english),
-            getString(R.string.ex_freetv),
-            getString(R.string.ex_country), getString(R.string.ex_language),
+            getString(R.string.ex_world), getString(R.string.ex_africa), getString(R.string.ex_sport),
+            getString(R.string.ex_films_fr), getString(R.string.ex_films_all), getString(R.string.ex_english),
+            getString(R.string.ex_freetv), getString(R.string.ex_country), getString(R.string.ex_language),
             getString(R.string.ex_category), getString(R.string.ex_file),
         )
         MaterialAlertDialogBuilder(this)
@@ -376,12 +384,15 @@ class MainActivity : AppCompatActivity() {
             .setItems(names.toTypedArray()) { _, i ->
                 when (i) {
                     0 -> loadFromUrl(Catalog.WORLD, getString(R.string.whole_world))
-                    1 -> loadBuiltin(BUILTIN_SPORT)
-                    2 -> loadFromUrl(Catalog.ENGLISH, getString(R.string.label_english))
-                    3 -> loadBuiltin(BUILTIN_FREETV)
-                    4 -> pickSource(getString(R.string.pick_country), Catalog.countries(getString(R.string.international)))
-                    5 -> pickSource(getString(R.string.pick_language), Catalog.languages())
-                    6 -> pickSource(getString(R.string.pick_category), Catalog.categories())
+                    1 -> loadBuiltin(BUILTIN_AFRICA)
+                    2 -> loadBuiltin(BUILTIN_SPORT)
+                    3 -> loadBuiltin(BUILTIN_FILMS_FR)
+                    4 -> loadBuiltin(BUILTIN_FILMS_ALL)
+                    5 -> loadFromUrl(Catalog.ENGLISH, getString(R.string.label_english))
+                    6 -> loadBuiltin(BUILTIN_FREETV)
+                    7 -> pickSource(getString(R.string.pick_country), Catalog.countries(getString(R.string.international)))
+                    8 -> pickSource(getString(R.string.pick_language), Catalog.languages())
+                    9 -> pickSource(getString(R.string.pick_category), Catalog.categories())
                     else -> pickFile.launch(arrayOf("*/*"))
                 }
             }
@@ -428,36 +439,70 @@ class MainActivity : AppCompatActivity() {
     private fun normalize(s: String): String =
         Normalizer.normalize(s, Normalizer.Form.NFD).replace(Regex("\\p{Mn}+"), "").lowercase().trim()
 
+    /** Une source d'une liste combinée : lien + filtre + transformation éventuelle. */
+    private class Part(
+        val url: String,
+        val keep: (Channel) -> Boolean = { true },
+        val map: (Channel) -> Channel = { it },
+    )
+
     /** Listes combinées : plusieurs sources gratuites fusionnées et filtrées. */
     private fun loadBuiltin(id: String) {
+        val official: (Channel) -> Boolean = { Catalog.isOfficialHost(it) }
+        // onlyFrom : ne garder que les chaînes présentes aussi dans cette liste (ex. chaînes en français)
+        var onlyFrom: String? = null
         val (parts, label) = when (id) {
-            BUILTIN_SPORT -> listOf<Pair<String, (Channel) -> Boolean>>(
-                Catalog.SPORTS to { _ -> true },
-                Catalog.FREE_TV to { c -> Catalog.isOfficialHost(c) && Catalog.isSport(c) },
+            BUILTIN_SPORT -> listOf(
+                Part(Catalog.SPORTS),
+                Part(Catalog.FREE_TV, { Catalog.isOfficialHost(it) && Catalog.isSport(it) }),
             ) to getString(R.string.label_sport)
-            else -> listOf<Pair<String, (Channel) -> Boolean>>(
-                Catalog.FREE_TV to { c -> Catalog.isOfficialHost(c) },
-            ) to getString(R.string.label_freetv)
+            BUILTIN_AFRICA -> Catalog.AFRICA_FR.map { code ->
+                val country = Catalog.countryLabel(code)
+                Part(Catalog.countryUrl(code), map = { it.copy(group = country) })
+            } + Part(Catalog.FRENCH, { Catalog.isPanAfrican(it) && Catalog.isOfficialHost(it) },
+                { it.copy(group = getString(R.string.group_panafrican)) }) to getString(R.string.label_africa)
+            BUILTIN_FILMS_FR -> {
+                onlyFrom = Catalog.FRENCH
+                listOf(
+                    Part(Catalog.MOVIES, official, { it.copy(group = getString(R.string.group_movies)) }),
+                    Part(Catalog.SERIES, official, { it.copy(group = getString(R.string.group_series)) }),
+                ) to getString(R.string.label_films_fr)
+            }
+            BUILTIN_FILMS_ALL -> listOf(
+                Part(Catalog.MOVIES, official, { it.copy(group = getString(R.string.group_movies)) }),
+                Part(Catalog.SERIES, official, { it.copy(group = getString(R.string.group_series)) }),
+                Part(Catalog.FREE_TV, { Catalog.isOfficialHost(it) && Catalog.isFilmOrSeries(it) }),
+            ) to getString(R.string.label_films_all)
+            else -> listOf(Part(Catalog.FREE_TV, official)) to getString(R.string.label_freetv)
         }
         setStatus(getString(R.string.st_loading_playlist))
         io.execute {
             val all = mutableListOf<Channel>()
             var lastError: Exception? = null
-            for ((url, keep) in parts) {
+            for (part in parts) {
                 try {
-                    all += M3uParser.parse(download(url)).filter(keep)
+                    all += M3uParser.parse(download(part.url)).filter(part.keep).map(part.map)
                 } catch (e: Exception) {
                     lastError = e
                 }
             }
-            val unique = all.distinctBy { it.url }
+            var unique = all.distinctBy { it.url }
+            onlyFrom?.let { url ->
+                try {
+                    val allowed = M3uParser.parse(download(url)).map { it.url }.toHashSet()
+                    unique = unique.filter { it.url in allowed }
+                } catch (e: Exception) {
+                    lastError = e
+                }
+            }
+            val result = unique
             val error = lastError
             main.post {
-                if (unique.isEmpty() && error != null) {
+                if (result.isEmpty() && error != null) {
                     setStatus(getString(R.string.err_playlist, error.message ?: ""), true)
                 } else {
                     prefs.edit().putString("lastUrl", id).putString("lastLabel", label).apply()
-                    useChannels(unique, label)
+                    useChannels(result, label)
                 }
             }
         }
@@ -657,15 +702,135 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        main.removeCallbacks(epgTicker)
         player?.release()
         player = null
         io.shutdown()
         super.onDestroy()
     }
 
+    // ---------- Guide des programmes ----------
+
+    private val timeFmt by lazy { java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT) }
+    private fun hhmm(t: Long): String = timeFmt.format(java.util.Date(t))
+
+    private val epgTicker: Runnable = object : Runnable {
+        override fun run() {
+            // toutes les minutes : met à jour « en cours » ; toutes les 6 h : recharge le guide
+            if (System.currentTimeMillis() - Epg.loadedAt > 6L * 60 * 60 * 1000) loadEpg()
+            else if (Epg.isLoaded) refreshEpgViews()
+            main.postDelayed(this, 60_000)
+        }
+    }
+
+    private fun loadEpg() {
+        io.execute {
+            val ok = Epg.load(this)
+            main.post { if (ok) refreshEpgViews() }
+        }
+    }
+
+    @SuppressLint("NotifyDataSetChanged")
+    private fun refreshEpgViews() {
+        adapter.notifyDataSetChanged()
+        updateNowEpg()
+    }
+
+    /** Ligne courte dans la liste : « ▶ 20:00 Journal · 20:45 Météo ». */
+    private fun epgLine(c: Channel): String? {
+        if (!Epg.isLoaded) return null
+        val (cur, next) = Epg.nowNext(c)
+        if (cur == null && next == null) return null
+        return buildString {
+            if (cur != null) append("▶ ").append(cur.title)
+            if (next != null) {
+                if (cur != null) append("  ·  ")
+                append(hhmm(next.start)).append(" ").append(next.title)
+            }
+        }
+    }
+
+    private fun updateNowEpg() {
+        val c = adapter.current
+        val (cur, next) = if (c != null && Epg.isLoaded) Epg.nowNext(c) else null to null
+        if (cur == null && next == null) {
+            nowEpg.visibility = View.GONE
+            return
+        }
+        nowEpg.visibility = View.VISIBLE
+        nowEpg.text = buildString {
+            if (cur != null) {
+                append(getString(R.string.epg_now)).append(" : ").append(cur.title)
+                append(" (").append(hhmm(cur.start)).append("–").append(hhmm(cur.stop)).append(")")
+            }
+            if (next != null) {
+                if (cur != null) append("\n")
+                append(getString(R.string.epg_next)).append(" : ").append(hhmm(next.start)).append(" ").append(next.title)
+            }
+        }
+    }
+
+    /** Programme complet d'une chaîne (appui long sur la chaîne, ou clic sur « En cours »). */
+    private fun showGuide(c: Channel) {
+        val list = Epg.programmes(c).filter { it.stop > System.currentTimeMillis() }
+        if (list.isEmpty()) {
+            Toast.makeText(this, if (Epg.isLoaded) getString(R.string.epg_none) else getString(R.string.epg_loading),
+                Toast.LENGTH_SHORT).show()
+            return
+        }
+        val d = resources.displayMetrics.density
+        val pad = (20 * d).toInt()
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, (4 * d).toInt(), pad, 0)
+        }
+        val dayFmt = java.text.SimpleDateFormat("EEEE d MMMM", java.util.Locale.getDefault())
+        var lastDay = ""
+        val now = System.currentTimeMillis()
+        for (p in list) {
+            val day = dayFmt.format(java.util.Date(p.start)).replaceFirstChar { it.titlecase() }
+            if (day != lastDay) {
+                lastDay = day
+                box.addView(TextView(this).apply {
+                    text = day
+                    setTextColor(0xFFFF8A3D.toInt())
+                    textSize = 13f
+                    setPadding(0, (12 * d).toInt(), 0, (4 * d).toInt())
+                })
+            }
+            val live = p.start <= now && now < p.stop
+            box.addView(TextView(this).apply {
+                text = "${hhmm(p.start)}   ${p.title}" + if (live) "   ●" else ""
+                setTextColor(if (live) 0xFFFF8A3D.toInt() else 0xFFE8EAED.toInt())
+                textSize = 15f
+                isFocusable = true
+                setPadding(0, (6 * d).toInt(), 0, 0)
+            })
+            if (p.desc.isNotBlank()) {
+                box.addView(TextView(this).apply {
+                    text = p.desc
+                    setTextColor(0xFF8B919C.toInt())
+                    textSize = 12f
+                    maxLines = 3
+                    ellipsize = android.text.TextUtils.TruncateAt.END
+                })
+            }
+        }
+        val scroll = android.widget.ScrollView(this).apply { addView(box) }
+        MaterialAlertDialogBuilder(this)
+            .setTitle(getString(R.string.epg_title, c.name))
+            .setView(scroll)
+            .setPositiveButton(R.string.epg_watch) { _, _ -> play(c) }
+            .setNegativeButton(R.string.close, null)
+            .show()
+    }
+
     companion object {
         private const val BUILTIN_SPORT = "builtin:sport"
         private const val BUILTIN_FREETV = "builtin:freetv"
+        private const val BUILTIN_AFRICA = "builtin:africa"
+        private const val BUILTIN_FILMS_FR = "builtin:films-fr"
+        private const val BUILTIN_FILMS_ALL = "builtin:films"
         private const val DEFAULT_UA =
             "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36"
     }

@@ -58,4 +58,19 @@
     <string name="lic_err_revoked">This code has been disabled. Contact the person who gave it to you.</string>
     <string name="lic_err_expired">This code has expired. Ask for a new code or an extension.</string>
     <string name="lic_err_network">Couldn\'t check the code: check your Internet connection.</string>
+    <string name="ex_africa">🌍 French-speaking Africa</string>
+    <string name="ex_films_fr">🎬 Movies &amp; series (French)</string>
+    <string name="ex_films_all">🍿 Movies &amp; series (all languages)</string>
+    <string name="label_africa">French-speaking Africa</string>
+    <string name="label_films_fr">movies &amp; series in French</string>
+    <string name="label_films_all">movies &amp; series</string>
+    <string name="group_panafrican">🌍  Pan-African</string>
+    <string name="group_movies">🎬 Movies</string>
+    <string name="group_series">📺 Series</string>
+    <string name="epg_now">Now</string>
+    <string name="epg_next">Next</string>
+    <string name="epg_title">Schedule – %1$s</string>
+    <string name="epg_none">No schedule available for this channel.</string>
+    <string name="epg_loading">Schedule is loading, try again in a moment.</string>
+    <string name="epg_watch">Watch</string>
 </resources>

@@ -58,4 +58,19 @@
     <string name="lic_err_revoked">Ce code a été désactivé. Contacte la personne qui te l\'a donné.</string>
     <string name="lic_err_expired">Ce code a expiré. Demande un nouveau code ou une prolongation.</string>
     <string name="lic_err_network">Impossible de vérifier le code : vérifie ta connexion Internet.</string>
+    <string name="ex_africa">🌍 Afrique francophone</string>
+    <string name="ex_films_fr">🎬 Films &amp; séries (en français)</string>
+    <string name="ex_films_all">🍿 Films &amp; séries (toutes langues)</string>
+    <string name="label_africa">Afrique francophone</string>
+    <string name="label_films_fr">films &amp; séries en français</string>
+    <string name="label_films_all">films &amp; séries</string>
+    <string name="group_panafrican">🌍  Panafricain</string>
+    <string name="group_movies">🎬 Films</string>
+    <string name="group_series">📺 Séries</string>
+    <string name="epg_now">En cours</string>
+    <string name="epg_next">À suivre</string>
+    <string name="epg_title">Programme – %1$s</string>
+    <string name="epg_none">Pas de programme disponible pour cette chaîne.</string>
+    <string name="epg_loading">Le programme se charge, réessaie dans un instant.</string>
+    <string name="epg_watch">Regarder</string>
 </resources>

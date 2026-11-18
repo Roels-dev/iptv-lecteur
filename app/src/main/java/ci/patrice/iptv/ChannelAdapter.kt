@@ -15,6 +15,8 @@ class ChannelAdapter(
     private val isFav: (Channel) -> Boolean,
     private val isOffline: (Channel) -> Boolean,
     private val linkCount: (Channel) -> Int,
+    private val epgLine: (Channel) -> String?,
+    private val onLongClick: (Channel) -> Unit,
 ) : RecyclerView.Adapter<ChannelAdapter.VH>() {
 
     var items: List<Channel> = emptyList()
@@ -25,6 +27,7 @@ class ChannelAdapter(
         val name: TextView = v.findViewById(R.id.name)
         val group: TextView = v.findViewById(R.id.group)
         val fav: TextView = v.findViewById(R.id.fav)
+        val epg: TextView = v.findViewById(R.id.epg)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH =
@@ -46,7 +49,11 @@ class ChannelAdapter(
         h.itemView.isActivated = playing
         h.fav.setTextColor(if (isFav(c)) ACCENT else MUTED)
         h.logo.load(c.logo.ifBlank { null }) { crossfade(true) }
+        val line = epgLine(c)
+        h.epg.text = line.orEmpty()
+        h.epg.visibility = if (line.isNullOrEmpty()) View.GONE else View.VISIBLE
         h.itemView.setOnClickListener { onClick(c) }
+        h.itemView.setOnLongClickListener { onLongClick(c); true }
         h.fav.setOnClickListener { onFavToggle(c) }
     }
 

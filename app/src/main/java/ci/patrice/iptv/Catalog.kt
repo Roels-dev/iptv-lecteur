@@ -26,6 +26,26 @@ object Catalog {
     /** Écarte les rediffusions non officielles hébergées sur une simple adresse IP. */
     fun isOfficialHost(c: Channel): Boolean = !rawIp.containsMatchIn(c.url)
 
+    // ----- Afrique francophone -----
+    val AFRICA_FR = listOf("ci", "sn", "cm", "cd", "cg", "ga", "bj", "tg", "bf", "ml", "ne", "gn", "td", "cf",
+        "mg", "km", "dj", "bi", "rw", "mr")
+    fun countryUrl(code: String) = "$BASE/countries/$code.m3u"
+    const val FRENCH = "$BASE/languages/fra.m3u"
+    fun countryLabel(code: String): String =
+        "${flag(code)}  ${Locale("", code.uppercase()).getDisplayCountry(Locale.getDefault())}"
+    private val panAfrican = Regex(
+        "afri|ivoir|s[ée]n[ée]gal|congo|cameroun|mali\\b|burkina|b[ée]nin|togo|gabon|guin[ée]e|niger|tchad|madagas|abidjan|dakar|kinshasa",
+        RegexOption.IGNORE_CASE,
+    )
+    fun isPanAfrican(c: Channel): Boolean = panAfrican.containsMatchIn(c.name)
+
+    // ----- Films & séries -----
+    const val MOVIES = "$BASE/categories/movies.m3u"
+    const val SERIES = "$BASE/categories/series.m3u"
+    private val filmWords = Regex("film|movie|cin[ée]|s[ée]rie|series|novela|drama|sitcom|western|thriller|action", RegexOption.IGNORE_CASE)
+    fun isFilmOrSeries(c: Channel): Boolean =
+        !c.group.startsWith("VOD") && (filmWords.containsMatchIn(c.name) || filmWords.containsMatchIn(c.group))
+
     fun isSport(c: Channel): Boolean = sportWords.containsMatchIn(c.name) || sportWords.containsMatchIn(c.group)
 
     private val fr get() = Locale.getDefault().language == "fr"
