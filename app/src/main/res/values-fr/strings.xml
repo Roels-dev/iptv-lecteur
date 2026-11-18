@@ -45,4 +45,17 @@
     <string name="label_freetv">TNT gratuites du monde</string>
     <string name="ex_english">🇬🇧 Apprendre l\'anglais</string>
     <string name="label_english">apprendre l\'anglais</string>
+    <string name="lic_title">Activation</string>
+    <string name="lic_intro">Entre ton code d\'accès personnel. Il ne fonctionne que sur un seul appareil.</string>
+    <string name="lic_activate">Activer</string>
+    <string name="lic_quit">Quitter</string>
+    <string name="lic_checking">Vérification du code…</string>
+    <string name="lic_device">ID de cet appareil : %1$s</string>
+    <string name="lic_activated">Code activé !</string>
+    <string name="lic_welcome">Bienvenue %1$s !</string>
+    <string name="lic_err_invalid">Code inconnu. Vérifie qu\'il est bien recopié.</string>
+    <string name="lic_err_used">Ce code est déjà utilisé sur un autre appareil.</string>
+    <string name="lic_err_revoked">Ce code a été désactivé. Contacte la personne qui te l\'a donné.</string>
+    <string name="lic_err_expired">Ce code a expiré. Demande un nouveau code ou une prolongation.</string>
+    <string name="lic_err_network">Impossible de vérifier le code : vérifie ta connexion Internet.</string>
 </resources>

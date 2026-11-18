@@ -11,8 +11,30 @@ android {
         applicationId = "ci.patrice.iptv"
         minSdk = 21
         targetSdk = 35
-        versionCode = 8
-        versionName = "1.7"
+        versionCode = 9
+        versionName = "2.0"
+
+        // Codes d'accès (Supabase). Vides = contrôle désactivé.
+        val supabaseUrl = (project.findProperty("iptv.supabaseUrl") as String?).orEmpty()
+        val supabaseKey = (project.findProperty("iptv.supabaseKey") as String?).orEmpty()
+        buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
+        buildConfigField("String", "SUPABASE_KEY", "\"$supabaseKey\"")
+    }
+
+    buildFeatures { buildConfig = true }
+
+    // Clé de signature FIXE (secrets GitHub) : indispensable pour installer
+    // les mises à jour par-dessus l'ancienne version.
+    signingConfigs {
+        getByName("debug") {
+            val ks = System.getenv("KEYSTORE_PATH")
+            if (!ks.isNullOrBlank()) {
+                storeFile = file(ks)
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = "iptv"
+                keyPassword = System.getenv("KEYSTORE_PASSWORD")
+            }
+        }
     }
 
     buildTypes {

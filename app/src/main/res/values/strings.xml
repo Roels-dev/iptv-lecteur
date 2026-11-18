@@ -45,4 +45,17 @@
     <string name="label_freetv">free-to-air TV worldwide</string>
     <string name="ex_english">🇬🇧 Learn English</string>
     <string name="label_english">learn English</string>
+    <string name="lic_title">Activation</string>
+    <string name="lic_intro">Enter your personal access code. It only works on one device.</string>
+    <string name="lic_activate">Activate</string>
+    <string name="lic_quit">Quit</string>
+    <string name="lic_checking">Checking code…</string>
+    <string name="lic_device">This device ID: %1$s</string>
+    <string name="lic_activated">Code activated!</string>
+    <string name="lic_welcome">Welcome %1$s!</string>
+    <string name="lic_err_invalid">Unknown code. Check that it was typed correctly.</string>
+    <string name="lic_err_used">This code is already used on another device.</string>
+    <string name="lic_err_revoked">This code has been disabled. Contact the person who gave it to you.</string>
+    <string name="lic_err_expired">This code has expired. Ask for a new code or an extension.</string>
+    <string name="lic_err_network">Couldn\'t check the code: check your Internet connection.</string>
 </resources>

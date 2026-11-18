@@ -2,6 +2,8 @@ package ci.patrice.iptv
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.DialogInterface
+import android.text.InputType
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.net.Uri
@@ -140,11 +142,128 @@ class MainActivity : AppCompatActivity() {
         setFullscreen(false, forceOrientation = false)
         if (isTv) findViewById<View>(R.id.presetsBtn).requestFocus()
 
+        if (Licence.enabled) verifyLicence() else startContent()
+    }
+
+    private var contentStarted = false
+
+    /** Charge la dernière playlist (ou ouvre Explorer). Appelé une fois le code d'accès validé. */
+    private fun startContent() {
+        if (contentStarted) return
+        contentStarted = true
         val last = prefs.getString("lastUrl", null)
         when {
             last.isNullOrBlank() -> showExplore()
             last.startsWith("builtin:") -> loadBuiltin(last)
             else -> loadFromUrl(last, prefs.getString("lastLabel", null))
+        }
+    }
+
+    // ---------- Code d'accès ----------
+
+    private fun verifyLicence() {
+        val code = Licence.savedCode(this)
+        if (code == null) {
+            showActivation(null, null)
+            return
+        }
+        setStatus(getString(R.string.lic_checking))
+        io.execute {
+            val result = Licence.check(this, code)
+            main.post {
+                when (result) {
+                    is LicenceResult.Ok -> {
+                        Licence.saveOk(this, code)
+                        startContent()
+                    }
+                    is LicenceResult.Refused -> {
+                        Licence.clear(this)
+                        showActivation(reasonText(result.reason), null)
+                    }
+                    is LicenceResult.NetworkError ->
+                        if (System.currentTimeMillis() - Licence.lastOk(this) < Licence.OFFLINE_GRACE_MS) startContent()
+                        else showActivation(getString(R.string.lic_err_network), code)
+                }
+            }
+        }
+    }
+
+    private fun reasonText(reason: String): String = getString(
+        when (reason) {
+            "used" -> R.string.lic_err_used
+            "revoked" -> R.string.lic_err_revoked
+            "expired" -> R.string.lic_err_expired
+            else -> R.string.lic_err_invalid
+        }
+    )
+
+    private fun showActivation(message: String?, prefill: String?) {
+        setStatus(getString(R.string.lic_title))
+        val d = resources.displayMetrics.density
+        val pad = (20 * d).toInt()
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, (8 * d).toInt(), pad, 0)
+        }
+        val intro = TextView(this).apply { text = getString(R.string.lic_intro) }
+        val input = EditText(this).apply {
+            hint = "XXXX-XXXX-XXXX"
+            isSingleLine = true
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS or
+                InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            if (prefill != null) setText(prefill)
+        }
+        val error = TextView(this).apply {
+            setTextColor(0xFFFF6B6B.toInt())
+            text = message.orEmpty()
+            visibility = if (message.isNullOrBlank()) View.GONE else View.VISIBLE
+        }
+        val device = TextView(this).apply {
+            text = getString(R.string.lic_device, Licence.shortDeviceId(this@MainActivity))
+            setTextColor(0xFF8B919C.toInt())
+            textSize = 12f
+            setPadding(0, (8 * d).toInt(), 0, 0)
+        }
+        box.addView(intro)
+        box.addView(input)
+        box.addView(error)
+        box.addView(device)
+
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.lic_title)
+            .setView(box)
+            .setCancelable(false)
+            .setPositiveButton(R.string.lic_activate, null)
+            .setNegativeButton(R.string.lic_quit) { _, _ -> finish() }
+            .create()
+        dialog.show()
+        val activate = dialog.getButton(DialogInterface.BUTTON_POSITIVE)
+        activate.setOnClickListener {
+            val code = input.text.toString().trim()
+            if (code.isEmpty()) return@setOnClickListener
+            activate.isEnabled = false
+            error.visibility = View.VISIBLE
+            error.setTextColor(0xFF8B919C.toInt())
+            error.text = getString(R.string.lic_checking)
+            io.execute {
+                val result = Licence.check(this, code)
+                main.post {
+                    activate.isEnabled = true
+                    error.setTextColor(0xFFFF6B6B.toInt())
+                    when (result) {
+                        is LicenceResult.Ok -> {
+                            Licence.saveOk(this, code)
+                            dialog.dismiss()
+                            val welcome = if (result.label.isBlank() || result.label == "null") getString(R.string.lic_activated)
+                            else getString(R.string.lic_welcome, result.label)
+                            Toast.makeText(this, welcome, Toast.LENGTH_LONG).show()
+                            startContent()
+                        }
+                        is LicenceResult.Refused -> error.text = reasonText(result.reason)
+                        is LicenceResult.NetworkError -> error.text = getString(R.string.lic_err_network)
+                    }
+                }
+            }
         }
     }
 
