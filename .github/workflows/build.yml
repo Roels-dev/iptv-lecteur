@@ -38,17 +38,27 @@ jobs:
       - name: Prepare signing key
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         run: |
           if [ -z "$KEYSTORE_BASE64" ]; then
             echo "::error::Secret KEYSTORE_BASE64 manquant (Settings > Secrets and variables > Actions)"
             exit 1
           fi
-          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/iptv-lecteur.jks"
+          # Nettoie espaces / retours à la ligne éventuels du copier-coller
+          if ! printf '%s' "$KEYSTORE_BASE64" | tr -d ' \r\n\t"' | base64 -d > "$RUNNER_TEMP/iptv-lecteur.jks"; then
+            echo "::error::KEYSTORE_BASE64 n'est pas un texte base64 valide (recopie tout le fichier KEYSTORE_BASE64.txt)"
+            exit 1
+          fi
+          echo "Taille de la clé décodée : $(wc -c < "$RUNNER_TEMP/iptv-lecteur.jks") octets (attendu : 2660)"
+          PW=$(printf '%s' "$KEYSTORE_PASSWORD" | tr -d ' \r\n\t"')
+          if ! keytool -list -keystore "$RUNNER_TEMP/iptv-lecteur.jks" -storepass "$PW" > /dev/null; then
+            echo "::error::Mot de passe KEYSTORE_PASSWORD incorrect ou clé invalide"
+            exit 1
+          fi
           echo "KEYSTORE_PATH=$RUNNER_TEMP/iptv-lecteur.jks" >> "$GITHUB_ENV"
+          echo "KEYSTORE_PASSWORD=$PW" >> "$GITHUB_ENV"
 
       - name: Build debug APK
-        env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         run: gradle assembleDebug --no-daemon
 
       - name: Check signature
