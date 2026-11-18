@@ -43,4 +43,6 @@
     <string name="ex_freetv">📡 TNT gratuites du monde (Free-TV)</string>
     <string name="label_sport">sport</string>
     <string name="label_freetv">TNT gratuites du monde</string>
+    <string name="ex_english">🇬🇧 Apprendre l\'anglais</string>
+    <string name="label_english">apprendre l\'anglais</string>
 </resources>

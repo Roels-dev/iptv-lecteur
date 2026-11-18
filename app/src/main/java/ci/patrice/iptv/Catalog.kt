@@ -11,6 +11,8 @@ object Catalog {
     const val WORLD = "$BASE/index.m3u"
     const val INTERNATIONAL = "$BASE/countries/int.m3u"
     const val SPORTS = "$BASE/categories/sports.m3u"
+    /** Liste « Apprendre l'anglais », modifiable directement dans le dépôt GitHub. */
+    const val ENGLISH = "https://raw.githubusercontent.com/Roels-dev/iptv-lecteur/main/playlists/anglais.m3u"
     /** Free-TV : chaînes gratuites (TNT) du monde entier, maintenue sur GitHub. */
     const val FREE_TV = "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8"
 

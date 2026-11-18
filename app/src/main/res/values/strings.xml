@@ -43,4 +43,6 @@
     <string name="ex_freetv">📡 Free-to-air TV worldwide (Free-TV)</string>
     <string name="label_sport">sport</string>
     <string name="label_freetv">free-to-air TV worldwide</string>
+    <string name="ex_english">🇬🇧 Learn English</string>
+    <string name="label_english">learn English</string>
 </resources>

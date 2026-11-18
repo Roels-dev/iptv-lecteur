@@ -240,7 +240,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun showExplore() {
         val names = listOf(
-            getString(R.string.ex_world), getString(R.string.ex_sport), getString(R.string.ex_freetv),
+            getString(R.string.ex_world), getString(R.string.ex_sport), getString(R.string.ex_english),
+            getString(R.string.ex_freetv),
             getString(R.string.ex_country), getString(R.string.ex_language),
             getString(R.string.ex_category), getString(R.string.ex_file),
         )
@@ -250,10 +251,11 @@ class MainActivity : AppCompatActivity() {
                 when (i) {
                     0 -> loadFromUrl(Catalog.WORLD, getString(R.string.whole_world))
                     1 -> loadBuiltin(BUILTIN_SPORT)
-                    2 -> loadBuiltin(BUILTIN_FREETV)
-                    3 -> pickSource(getString(R.string.pick_country), Catalog.countries(getString(R.string.international)))
-                    4 -> pickSource(getString(R.string.pick_language), Catalog.languages())
-                    5 -> pickSource(getString(R.string.pick_category), Catalog.categories())
+                    2 -> loadFromUrl(Catalog.ENGLISH, getString(R.string.label_english))
+                    3 -> loadBuiltin(BUILTIN_FREETV)
+                    4 -> pickSource(getString(R.string.pick_country), Catalog.countries(getString(R.string.international)))
+                    5 -> pickSource(getString(R.string.pick_language), Catalog.languages())
+                    6 -> pickSource(getString(R.string.pick_category), Catalog.categories())
                     else -> pickFile.launch(arrayOf("*/*"))
                 }
             }
