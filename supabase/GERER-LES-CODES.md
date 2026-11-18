@@ -37,3 +37,12 @@ update public.iptv_licences
 set expires_at = greatest(coalesce(expires_at, now()), now()) + interval '30 days'
 where code = 'XXXX-XXXX-XXXX';
 ```
+
+---
+
+## Page de gestion (plus simple)
+https://roels-dev.github.io/iptv-lecteur/admin.html
+Installation unique : exécuter `supabase/admin.sql` dans le SQL Editor, puis définir le mot de passe :
+```sql
+select public.iptv_admin_set_password('ton-mot-de-passe');
+```

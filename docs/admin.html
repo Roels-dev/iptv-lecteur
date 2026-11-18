@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Codes IPTV Lecteur</title>
+<style>
+  :root { --bg:#0f1115; --panel:#181b22; --panel2:#1e222b; --line:#2a2f3a; --txt:#e8eaed; --mut:#8b919c;
+          --acc:#ff8a3d; --ok:#3ecf8e; --warn:#f5b942; --err:#ff6b6b; --blue:#6ea8ff; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--txt); font-size:15px; }
+  .wrap { max-width:980px; margin:0 auto; padding:16px; }
+  h1 { font-size:20px; margin:0; } h1 span { color:var(--acc); }
+  h2 { font-size:15px; margin:0 0 12px; color:var(--mut); font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:16px; }
+  input, select, button { font:inherit; color:var(--txt); background:var(--panel2); border:1px solid var(--line); border-radius:8px; padding:10px 12px; }
+  input:focus, select:focus { outline:2px solid var(--acc); outline-offset:-1px; }
+  button { cursor:pointer; white-space:nowrap; }
+  button:hover { border-color:var(--mut); }
+  button:disabled { opacity:.5; cursor:default; }
+  .pri { background:var(--acc); border-color:var(--acc); color:#111; font-weight:600; }
+  .pri:hover { border-color:#fff; }
+  .small { padding:6px 10px; font-size:13px; }
+  .danger { color:var(--err); }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .grow { flex:1; min-width:140px; }
+  .top { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
+  .stats { display:flex; gap:8px; flex-wrap:wrap; }
+  .stat { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:8px 12px; font-size:13px; color:var(--mut); }
+  .stat b { color:var(--txt); font-size:16px; margin-right:4px; }
+  .chips { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; }
+  .chip { padding:6px 12px; border-radius:20px; font-size:13px; }
+  .chip.on { background:var(--acc); border-color:var(--acc); color:#111; font-weight:600; }
+  .lic { border:1px solid var(--line); border-radius:10px; padding:12px; margin-bottom:10px; background:var(--panel2); }
+  .lic-head { display:flex; justify-content:space-between; gap:8px; align-items:flex-start; flex-wrap:wrap; }
+  .code { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:17px; font-weight:700; letter-spacing:.05em; }
+  .label { font-weight:600; margin-top:2px; }
+  .meta { color:var(--mut); font-size:13px; margin:8px 0 10px; line-height:1.6; }
+  .badge { font-size:12px; font-weight:700; padding:3px 9px; border-radius:20px; border:1px solid; }
+  .b-ok { color:var(--ok); border-color:var(--ok); }
+  .b-new { color:var(--blue); border-color:var(--blue); }
+  .b-off { color:var(--err); border-color:var(--err); }
+  .b-exp { color:var(--warn); border-color:var(--warn); }
+  .actions { display:flex; gap:6px; flex-wrap:wrap; }
+  .newcodes { margin-top:12px; display:none; }
+  .newcodes .lic { border-color:var(--acc); }
+  .empty { color:var(--mut); text-align:center; padding:24px; }
+  #login { max-width:380px; margin:12vh auto 0; }
+  #login input { width:100%; margin:12px 0; }
+  .check { display:flex; gap:8px; align-items:center; color:var(--mut); font-size:14px; margin-bottom:12px; }
+  .check input { width:auto; margin:0; }
+  .err { color:var(--err); font-size:14px; min-height:20px; }
+  #toast { position:fixed; left:50%; bottom:20px; transform:translateX(-50%); background:#2a2f3a; color:var(--txt);
+           padding:10px 16px; border-radius:10px; font-size:14px; opacity:0; transition:opacity .2s; pointer-events:none; max-width:90vw; }
+  #toast.show { opacity:1; }
+  .hidden { display:none !important; }
+  .wa { color:#25d366; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- Connexion -->
+  <div id="login" class="card">
+    <h1>📺 Codes <span>IPTV Lecteur</span></h1>
+    <p style="color:var(--mut);margin:8px 0 0">Page privée de gestion des codes d'accès.</p>
+    <form id="loginForm">
+      <input type="password" id="pw" placeholder="Mot de passe" autocomplete="current-password" required>
+      <label class="check"><input type="checkbox" id="remember"> Rester connecté sur cet appareil</label>
+      <button class="pri" style="width:100%" id="loginBtn">Se connecter</button>
+      <p class="err" id="loginErr"></p>
+    </form>
+  </div>
+
+  <!-- Tableau de bord -->
+  <div id="app" class="hidden">
+    <div class="top">
+      <h1>📺 Codes <span>IPTV Lecteur</span></h1>
+      <div class="row">
+        <button class="small" id="refresh">↻ Actualiser</button>
+        <button class="small" id="logout">Déconnexion</button>
+      </div>
+    </div>
+
+    <div class="stats" id="stats" style="margin-bottom:16px"></div>
+
+    <div class="card">
+      <h2>Créer des codes</h2>
+      <form id="createForm" class="row">
+        <input class="grow" id="cLabel" placeholder="Nom de la personne ou du poste" maxlength="80" required>
+        <input id="cNb" type="number" min="1" max="50" value="1" style="width:80px" title="Nombre de codes">
+        <select id="cDays" title="Durée de validité">
+          <option value="">Durée illimitée</option>
+          <option value="7">7 jours</option>
+          <option value="30">30 jours</option>
+          <option value="90">3 mois</option>
+          <option value="180">6 mois</option>
+          <option value="365">1 an</option>
+        </select>
+        <button class="pri" id="createBtn">Créer</button>
+      </form>
+      <div class="newcodes" id="newcodes"></div>
+    </div>
+
+    <div class="card">
+      <h2>Tous les codes</h2>
+      <input id="search" placeholder="Rechercher un nom, un code, un appareil…" style="width:100%">
+      <div class="chips" id="chips">
+        <button class="chip on" data-f="all">Tous</button>
+        <button class="chip" data-f="new">Non utilisés</button>
+        <button class="chip" data-f="ok">Actifs</button>
+        <button class="chip" data-f="off">Désactivés</button>
+        <button class="chip" data-f="exp">Expirés</button>
+      </div>
+      <div id="list" style="margin-top:14px"></div>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+const SUPABASE_URL = "https://ivnewchqnvuiersvyitl.supabase.co";
+const SUPABASE_KEY = "sb_publishable_FaH32rV3yZSD84y_VDxMSA_kf04uFMt";
+const APK_URL = "https://github.com/Roels-dev/iptv-lecteur/releases/latest/download/IPTV-Lecteur.apk";
+
+const $ = s => document.querySelector(s);
+let password = null, codes = [], filter = "all";
+
+// ---------- Stockage du mot de passe (session ou appareil) ----------
+const store = {
+  get() { try { return sessionStorage.getItem("iptvpw") || localStorage.getItem("iptvpw"); } catch { return null; } },
+  set(pw, remember) { try { (remember ? localStorage : sessionStorage).setItem("iptvpw", pw); } catch {} },
+  clear() { try { sessionStorage.removeItem("iptvpw"); localStorage.removeItem("iptvpw"); } catch {} }
+};
+
+// ---------- Appels Supabase ----------
+async function rpc(fn, args) {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: { "apikey": SUPABASE_KEY, "Content-Type": "application/json" },
+    body: JSON.stringify({ p_password: password, ...args })
+  });
+  let data = null;
+  try { data = await r.json(); } catch {}
+  if (!r.ok) throw new Error((data && (data.message || data.hint)) || `Erreur serveur (${r.status})`);
+  if (data && data.ok === false && data.error) {
+    if (/incorrect|Trop d'essais/.test(data.error)) logout(data.error);
+    throw new Error(data.error);
+  }
+  return data;
+}
+
+function toast(msg) {
+  const t = $("#toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove("show"), 2600);
+}
+
+// ---------- Connexion ----------
+$("#loginForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  password = $("#pw").value;
+  $("#loginBtn").disabled = true; $("#loginErr").textContent = "";
+  try {
+    await load();
+    store.set(password, $("#remember").checked);
+    showApp();
+  } catch (err) {
+    password = null;
+    $("#loginErr").textContent = err.message;
+  } finally { $("#loginBtn").disabled = false; }
+});
+
+function showApp() { $("#login").classList.add("hidden"); $("#app").classList.remove("hidden"); }
+function logout(msg) {
+  password = null; store.clear(); codes = [];
+  $("#app").classList.add("hidden"); $("#login").classList.remove("hidden");
+  $("#pw").value = ""; $("#loginErr").textContent = msg || "";
+}
+$("#logout").onclick = () => logout();
+$("#refresh").onclick = () => load().then(() => toast("Liste à jour")).catch(e => toast(e.message));
+
+// ---------- Données ----------
+async function load() {
+  const d = await rpc("iptv_admin_list", {});
+  codes = d.codes || [];
+  render();
+}
+
+function status(c) {
+  if (!c.active) return "off";
+  if (c.expires_at && new Date(c.expires_at) < new Date()) return "exp";
+  return c.lie ? "ok" : "new";
+}
+const STATUS = {
+  ok:  ["Actif", "b-ok"], new: ["Non utilisé", "b-new"],
+  off: ["Désactivé", "b-off"], exp: ["Expiré", "b-exp"]
+};
+
+function fmtDate(s) {
+  if (!s) return "";
+  return new Date(s).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
+}
+function ago(s) {
+  if (!s) return "jamais";
+  const m = Math.round((Date.now() - new Date(s)) / 60000);
+  if (m < 1) return "à l'instant";
+  if (m < 60) return `il y a ${m} min`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `il y a ${h} h`;
+  const j = Math.round(h / 24);
+  return j < 31 ? `il y a ${j} j` : `le ${fmtDate(s)}`;
+}
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+
+function waLink(code, label) {
+  const msg = `Bonjour${label ? " " + label : ""}, voici ton code d'accès IPTV Lecteur : ${code}\n\n` +
+    `1. Télécharge l'app : ${APK_URL}\n2. Ouvre-la et saisis ton code.\n\n` +
+    `Attention : ce code ne fonctionne que sur un seul appareil.`;
+  return "https://wa.me/?text=" + encodeURIComponent(msg);
+}
+
+function render() {
+  const counts = { ok: 0, new: 0, off: 0, exp: 0 };
+  codes.forEach(c => counts[status(c)]++);
+  $("#stats").innerHTML =
+    `<div class="stat"><b>${codes.length}</b>codes</div>` +
+    `<div class="stat"><b>${counts.ok}</b>actifs</div>` +
+    `<div class="stat"><b>${counts.new}</b>non utilisés</div>` +
+    `<div class="stat"><b>${counts.off + counts.exp}</b>désactivés / expirés</div>`;
+
+  const q = $("#search").value.trim().toLowerCase();
+  const items = codes.filter(c =>
+    (filter === "all" || status(c) === filter) &&
+    (!q || [c.code, c.label, c.device_name].some(v => (v || "").toLowerCase().includes(q))));
+
+  $("#list").innerHTML = items.length ? items.map(c => {
+    const st = status(c), [stLabel, stCls] = STATUS[st];
+    const exp = c.expires_at ? `Expire le ${fmtDate(c.expires_at)}` : "Durée illimitée";
+    const dev = c.lie ? `📱 ${esc(c.device_name || "Appareil inconnu")} · activé le ${fmtDate(c.activated_at)}` : "Pas encore activé";
+    return `<div class="lic" data-code="${esc(c.code)}">
+      <div class="lic-head">
+        <div><div class="code">${esc(c.code)}</div><div class="label">${esc(c.label) || "<i style='color:var(--mut)'>Sans nom</i>"}</div></div>
+        <span class="badge ${stCls}">${stLabel}</span>
+      </div>
+      <div class="meta">${dev}<br>${exp} · dernière ouverture : ${ago(c.last_seen_at)}</div>
+      <div class="actions">
+        <button class="small" data-a="copy">Copier</button>
+        <a class="small wa" href="${waLink(c.code, c.label)}" target="_blank" rel="noopener"><button class="small wa">WhatsApp</button></a>
+        ${c.active ? `<button class="small" data-a="off">Désactiver</button>` : `<button class="small" data-a="on">Réactiver</button>`}
+        ${c.lie ? `<button class="small" data-a="reset">Libérer l'appareil</button>` : ""}
+        <button class="small" data-a="extend">+30 jours</button>
+        ${c.expires_at ? `<button class="small" data-a="unlimited">Illimité</button>` : ""}
+        <button class="small" data-a="rename">Renommer</button>
+        <button class="small danger" data-a="delete">Supprimer</button>
+      </div>
+    </div>`;
+  }).join("") : `<div class="empty">${codes.length ? "Aucun code ne correspond." : "Aucun code pour l'instant. Crée le premier ci-dessus."}</div>`;
+}
+
+$("#search").oninput = render;
+$("#chips").onclick = e => {
+  const b = e.target.closest("[data-f]"); if (!b) return;
+  filter = b.dataset.f;
+  document.querySelectorAll(".chip").forEach(x => x.classList.toggle("on", x === b));
+  render();
+};
+
+async function copy(text) {
+  try { await navigator.clipboard.writeText(text); toast("Copié : " + text); }
+  catch { prompt("Copie ce code :", text); }
+}
+
+// ---------- Actions sur un code ----------
+$("#list").addEventListener("click", async e => {
+  const b = e.target.closest("[data-a]"); if (!b) return;
+  const code = b.closest("[data-code]").dataset.code;
+  const c = codes.find(x => x.code === code);
+  const a = b.dataset.a;
+  try {
+    if (a === "copy") return copy(code);
+    if (a === "off") {
+      if (!confirm(`Désactiver ${code} (${c.label || "sans nom"}) ?\nL'app sera bloquée à sa prochaine ouverture.`)) return;
+      await rpc("iptv_admin_set_active", { p_code: code, p_active: false }); toast("Code désactivé");
+    } else if (a === "on") {
+      await rpc("iptv_admin_set_active", { p_code: code, p_active: true }); toast("Code réactivé");
+    } else if (a === "reset") {
+      if (!confirm(`Libérer ${code} de « ${c.device_name || "son appareil"} » ?\nLa personne pourra le saisir sur un nouvel appareil.`)) return;
+      await rpc("iptv_admin_reset_device", { p_code: code }); toast("Code libéré : prêt pour un nouvel appareil");
+    } else if (a === "extend") {
+      await rpc("iptv_admin_extend", { p_code: code, p_jours: 30 }); toast("Prolongé de 30 jours");
+    } else if (a === "unlimited") {
+      if (!confirm(`Rendre ${code} valable sans limite de durée ?`)) return;
+      await rpc("iptv_admin_extend", { p_code: code, p_jours: null }); toast("Durée illimitée");
+    } else if (a === "rename") {
+      const name = prompt("Nouveau nom pour ce code :", c.label || "");
+      if (name === null) return;
+      await rpc("iptv_admin_rename", { p_code: code, p_label: name.trim() }); toast("Nom modifié");
+    } else if (a === "delete") {
+      if (!confirm(`Supprimer définitivement ${code} (${c.label || "sans nom"}) ?\nCette action est irréversible.`)) return;
+      await rpc("iptv_admin_delete", { p_code: code }); toast("Code supprimé");
+    }
+    await load();
+  } catch (err) { toast(err.message); }
+});
+
+// ---------- Création ----------
+$("#createForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const label = $("#cLabel").value.trim();
+  const nb = Math.max(1, Math.min(50, parseInt($("#cNb").value, 10) || 1));
+  const days = $("#cDays").value ? parseInt($("#cDays").value, 10) : null;
+  $("#createBtn").disabled = true;
+  try {
+    const d = await rpc("iptv_admin_create", { p_nombre: nb, p_label: label, p_jours: days });
+    const box = $("#newcodes");
+    box.style.display = "block";
+    box.innerHTML = `<p style="margin:0 0 8px;color:var(--ok)">✓ ${d.codes.length} code(s) créé(s) pour ${esc(label)} :</p>` +
+      d.codes.map(code => `<div class="lic"><div class="lic-head"><div class="code">${esc(code)}</div>
+        <div class="actions"><button class="small" data-copy="${esc(code)}">Copier</button>
+        <a href="${waLink(code, label)}" target="_blank" rel="noopener"><button class="small wa">Envoyer par WhatsApp</button></a></div></div></div>`).join("");
+    $("#cLabel").value = ""; $("#cNb").value = 1;
+    await load();
+  } catch (err) { toast(err.message); }
+  finally { $("#createBtn").disabled = false; }
+});
+$("#newcodes").addEventListener("click", e => {
+  const b = e.target.closest("[data-copy]"); if (b) copy(b.dataset.copy);
+});
+
+// ---------- Démarrage : reconnexion automatique si mot de passe mémorisé ----------
+(async () => {
+  const saved = store.get();
+  if (!saved) return;
+  password = saved;
+  try { await load(); showApp(); } catch { password = null; store.clear(); }
+})();
+</script>
+</body>
+</html>

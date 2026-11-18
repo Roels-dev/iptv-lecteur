@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths-ignore:
       - "playlists/**"
+      - "docs/**"
+      - "supabase/**"
+      - "README.md"
   workflow_dispatch:
 
 permissions:
