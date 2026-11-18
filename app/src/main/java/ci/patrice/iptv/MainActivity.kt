@@ -14,6 +14,7 @@ import android.view.KeyEvent
 import android.view.View
 import android.widget.Toast
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
@@ -170,6 +171,12 @@ class MainActivity : AppCompatActivity() {
                     else -> {}
                 }
             }
+            // Écran toujours allumé pendant la lecture, veille normale en pause / à l'arrêt.
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                if (isPlaying) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            }
+
             override fun onPlayerError(error: PlaybackException) {
                 val c = adapter.current
                 // Flux en direct « en retard » ou coupure passagère : on relance une fois automatiquement.
