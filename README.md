@@ -8,3 +8,5 @@ rubriques Sport et Apprendre l'anglais, codes d'accès uniques par appareil.
 - **Modifier la liste Apprendre l'anglais** : `playlists/anglais.m3u` (sans recompiler)
 
 Chaque push sur `main` compile et publie automatiquement un nouvel APK (GitHub Actions).
+
+Version actuelle : 2.0 (codes d'accès).
