@@ -72,7 +72,11 @@ object Licence {
             conn.doOutput = true
             conn.setRequestProperty("Content-Type", "application/json")
             conn.setRequestProperty("apikey", BuildConfig.SUPABASE_KEY)
-            conn.setRequestProperty("Authorization", "Bearer ${BuildConfig.SUPABASE_KEY}")
+            // Ancienne clé « anon » (JWT eyJ…) : à envoyer aussi en Bearer.
+            // Nouvelle clé « publishable » (sb_publishable_…) : seulement dans l'en-tête apikey.
+            if (BuildConfig.SUPABASE_KEY.startsWith("eyJ")) {
+                conn.setRequestProperty("Authorization", "Bearer ${BuildConfig.SUPABASE_KEY}")
+            }
             val body = JSONObject()
                 .put("p_code", code.trim())
                 .put("p_device", deviceId(ctx))
