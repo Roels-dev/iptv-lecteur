@@ -8,6 +8,8 @@ on:
       - "docs/**"
       - "supabase/**"
       - "README.md"
+      - "epg/**"
+      - ".github/workflows/epg.yml"
   workflow_dispatch:
 
 permissions:

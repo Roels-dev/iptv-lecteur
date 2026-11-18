@@ -1,0 +1,55 @@
+name: Guide des programmes (EPG)
+
+# Récupère chaque jour les programmes TV (outil officiel iptv-org/epg)
+# et les publie dans la release "epg" : .../releases/download/epg/guide.xml.gz
+on:
+  schedule:
+    - cron: "17 2 * * *"   # tous les jours vers 02h17 (heure d'Abidjan)
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/epg.yml"
+      - "epg/**"
+
+permissions:
+  contents: write
+
+jobs:
+  grab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install iptv-org/epg
+        run: |
+          git clone --depth 1 https://github.com/iptv-org/epg.git epg-tool
+          cd epg-tool && npm install --no-audit --no-fund
+
+      - name: Grab guide (2 days)
+        working-directory: epg-tool
+        run: |
+          npm run grab --- --channels=../epg/channels.xml --days=2 --maxConnections=5 \
+            --timeout=30000 --output=../guide.xml --gzip=../guide.xml.gz || true
+          ls -la ../guide.xml* || true
+
+      - name: Check guide
+        run: |
+          test -s guide.xml.gz
+          echo "Programmes : $(grep -c '<programme' guide.xml)"
+          echo "Chaînes avec programmes : $(grep -o 'programme start="[^"]*" stop="[^"]*" channel="[^"]*"' guide.xml | sed 's/.*channel=//' | sort -u | wc -l)" | tee -a "$GITHUB_STEP_SUMMARY"
+          test "$(grep -c '<programme' guide.xml)" -gt 100
+
+      - name: Publish
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: epg
+          name: Guide des programmes (mis à jour chaque jour)
+          prerelease: true
+          make_latest: false
+          files: guide.xml.gz
